@@ -4,16 +4,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import CourierForm from "@/components/forms/CourierForm";
+import CourierTable from "@/components/tables/CourierTable";
+import CourierDetailsModal from "@/components/details/CourierDetailsModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -30,27 +24,19 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
 import { getSolicitudesPorTipo, deleteSolicitud } from "@/services/firestoreService";
-import type { MensajeriaRequestData, SolicitudDataWithId } from "@/types/requestTypes";
-import { SolicitudStatus } from "@/types/requestTypes";
+import type { MensajeriaRequestData } from "@/types/requestTypes";
 import { useToast } from "@/hooks/use-toast";
-import { Edit, Trash2, PlusCircle, Search } from "lucide-react";
-import { Timestamp } from "firebase/firestore";
-
-// Helper to format Timestamp for display
-const formatTimestampForDisplay = (timestamp?: Timestamp): string => {
-  if (!timestamp) return "N/A";
-  return timestamp.toDate().toLocaleString('es-UY', { dateStyle: 'short', timeStyle: 'short' });
-};
-
+import { PlusCircle, Search } from "lucide-react";
 
 export default function MensajeriaPage() {
   const [solicitudes, setSolicitudes] = useState<MensajeriaRequestData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedSolicitud, setSelectedSolicitud] = useState<(MensajeriaRequestData & { id: string }) | null>(null);
+  const [isViewDetailsModalOpen, setIsViewDetailsModalOpen] = useState(false);
+  const [selectedSolicitud, setSelectedSolicitud] = useState<MensajeriaRequestData | null>(null);
   const [solicitudToDeleteId, setSolicitudToDeleteId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -78,11 +64,16 @@ export default function MensajeriaPage() {
   }, [fetchSolicitudes]);
 
   const handleCreateNew = () => {
-    setSelectedSolicitud(null); // Ensure we are in create mode
+    setSelectedSolicitud(null);
     setIsCreateModalOpen(true);
   };
 
-  const handleEdit = (solicitud: MensajeriaRequestData & { id: string }) => {
+  const handleViewDetails = (solicitud: MensajeriaRequestData) => {
+    setSelectedSolicitud(solicitud);
+    setIsViewDetailsModalOpen(true);
+  };
+
+  const handleEdit = (solicitud: MensajeriaRequestData) => {
     setSelectedSolicitud(solicitud);
     setIsEditModalOpen(true);
   };
@@ -99,7 +90,7 @@ export default function MensajeriaPage() {
         title: "Solicitud Eliminada",
         description: "La solicitud de mensajería ha sido eliminada.",
       });
-      fetchSolicitudes(); // Refresh list
+      fetchSolicitudes(); 
     } catch (error) {
       console.error("Error deleting solicitud:", error);
       toast({
@@ -116,12 +107,13 @@ export default function MensajeriaPage() {
     setIsCreateModalOpen(false);
     setIsEditModalOpen(false);
     setSelectedSolicitud(null);
-    fetchSolicitudes(); // Refresh list
+    fetchSolicitudes(); 
   };
   
   const filteredSolicitudes = solicitudes.filter(solicitud => {
     const term = searchTerm.toLowerCase();
     return (
+      solicitud.id?.toLowerCase().includes(term) ||
       solicitud.origen?.toLowerCase().includes(term) ||
       solicitud.destino?.toLowerCase().includes(term) ||
       solicitud.descripcionPaquete?.toLowerCase().includes(term) ||
@@ -145,7 +137,7 @@ export default function MensajeriaPage() {
             <div className="relative w-full md:max-w-xs">
               <Input 
                 type="text"
-                placeholder="Filtrar por origen, destino, paquete..."
+                placeholder="Filtrar por ID, origen, estado..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 w-full" 
@@ -165,47 +157,12 @@ export default function MensajeriaPage() {
               {solicitudes.length > 0 ? "No hay solicitudes que coincidan con su búsqueda." : "No hay solicitudes de mensajería registradas."}
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Origen</TableHead>
-                  <TableHead>Destino</TableHead>
-                  <TableHead className="hidden md:table-cell">Paquete</TableHead>
-                  <TableHead className="hidden lg:table-cell">Recolección</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredSolicitudes.map((solicitud) => (
-                  <TableRow key={solicitud.id}>
-                    <TableCell className="font-medium truncate max-w-xs">{solicitud.origen}</TableCell>
-                    <TableCell className="truncate max-w-xs">{solicitud.destino}</TableCell>
-                    <TableCell className="hidden md:table-cell truncate max-w-xs">{solicitud.descripcionPaquete}</TableCell>
-                    <TableCell className="hidden lg:table-cell">{formatTimestampForDisplay(solicitud.fechaRecoleccionDeseada)}</TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        solicitud.estado === SolicitudStatus.PENDIENTE ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
-                        solicitud.estado === SolicitudStatus.EN_PROCESO ? 'bg-blue-100 text-blue-700 border border-blue-300' :
-                        solicitud.estado === SolicitudStatus.COMPLETADO ? 'bg-green-100 text-green-700 border border-green-300' :
-                        solicitud.estado === SolicitudStatus.CANCELADO ? 'bg-red-100 text-red-700 border border-red-300' : 
-                        'bg-gray-100 text-gray-700 border border-gray-300'
-                      }`}>
-                        {solicitud.estado}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(solicitud as SolicitudDataWithId as MensajeriaRequestData & {id: string})} title="Editar">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteConfirmation(solicitud.id!)} title="Eliminar" className="text-destructive hover:text-destructive/80">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <CourierTable
+              solicitudes={filteredSolicitudes}
+              onViewDetails={handleViewDetails}
+              onEdit={handleEdit}
+              onDelete={handleDeleteConfirmation}
+            />
           )}
         </CardContent>
       </Card>
@@ -238,6 +195,12 @@ export default function MensajeriaPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <CourierDetailsModal
+        solicitud={selectedSolicitud}
+        isOpen={isViewDetailsModalOpen}
+        onOpenChange={setIsViewDetailsModalOpen}
+      />
       
       <AlertDialog open={!!solicitudToDeleteId} onOpenChange={() => setSolicitudToDeleteId(null)}>
         <AlertDialogContent>

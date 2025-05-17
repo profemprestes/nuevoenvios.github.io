@@ -4,16 +4,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import DeliveryForm from "@/components/forms/DeliveryForm";
+import DeliveryTable from "@/components/tables/DeliveryTable";
+import DeliveryDetailsModal from "@/components/details/DeliveryDetailsModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -30,25 +24,19 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
 import { getSolicitudesPorTipo, deleteSolicitud } from "@/services/firestoreService";
-import type { DeliveryRequestData, SolicitudDataWithId } from "@/types/requestTypes";
-import { SolicitudStatus } from "@/types/requestTypes";
+import type { DeliveryRequestData } from "@/types/requestTypes";
 import { useToast } from "@/hooks/use-toast";
-import { Edit, Trash2, PlusCircle, Search } from "lucide-react";
-import { Timestamp } from "firebase/firestore";
-
-const formatTimestampForDisplay = (timestamp?: Timestamp): string => {
-  if (!timestamp) return "N/A";
-  return timestamp.toDate().toLocaleString('es-UY', { dateStyle: 'short', timeStyle: 'short' });
-};
+import { PlusCircle, Search } from "lucide-react";
 
 export default function DeliveryPage() {
   const [solicitudes, setSolicitudes] = useState<DeliveryRequestData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedSolicitud, setSelectedSolicitud] = useState<(DeliveryRequestData & { id: string }) | null>(null);
+  const [isViewDetailsModalOpen, setIsViewDetailsModalOpen] = useState(false);
+  const [selectedSolicitud, setSelectedSolicitud] = useState<DeliveryRequestData | null>(null);
   const [solicitudToDeleteId, setSolicitudToDeleteId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -79,8 +67,13 @@ export default function DeliveryPage() {
     setSelectedSolicitud(null);
     setIsCreateModalOpen(true);
   };
+  
+  const handleViewDetails = (solicitud: DeliveryRequestData) => {
+    setSelectedSolicitud(solicitud);
+    setIsViewDetailsModalOpen(true);
+  };
 
-  const handleEdit = (solicitud: DeliveryRequestData & { id: string }) => {
+  const handleEdit = (solicitud: DeliveryRequestData) => {
     setSelectedSolicitud(solicitud);
     setIsEditModalOpen(true);
   };
@@ -120,6 +113,7 @@ export default function DeliveryPage() {
   const filteredSolicitudes = solicitudes.filter(solicitud => {
     const term = searchTerm.toLowerCase();
     return (
+      solicitud.id?.toLowerCase().includes(term) ||
       solicitud.direccionOrigen?.toLowerCase().includes(term) ||
       solicitud.direccionDestino?.toLowerCase().includes(term) ||
       solicitud.nombreDestinatario?.toLowerCase().includes(term) ||
@@ -143,7 +137,7 @@ export default function DeliveryPage() {
             <div className="relative w-full md:max-w-xs">
                 <Input
                 type="text"
-                placeholder="Filtrar por dirección, destinatario..."
+                placeholder="Filtrar por ID, dirección, estado..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 w-full"
@@ -163,47 +157,12 @@ export default function DeliveryPage() {
               {solicitudes.length > 0 ? "No hay solicitudes que coincidan con su búsqueda." : "No hay solicitudes de delivery registradas."}
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Origen</TableHead>
-                  <TableHead>Destino</TableHead>
-                  <TableHead className="hidden md:table-cell">Destinatario</TableHead>
-                  <TableHead className="hidden lg:table-cell">Entrega Deseada</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredSolicitudes.map((solicitud) => (
-                  <TableRow key={solicitud.id}>
-                    <TableCell className="font-medium truncate max-w-xs">{solicitud.direccionOrigen}</TableCell>
-                    <TableCell className="truncate max-w-xs">{solicitud.direccionDestino}</TableCell>
-                    <TableCell className="hidden md:table-cell">{solicitud.nombreDestinatario}</TableCell>
-                    <TableCell className="hidden lg:table-cell">{formatTimestampForDisplay(solicitud.fechaEntregaDeseada)}</TableCell>
-                     <TableCell>
-                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        solicitud.estado === SolicitudStatus.PENDIENTE ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
-                        solicitud.estado === SolicitudStatus.EN_PROCESO ? 'bg-blue-100 text-blue-700 border border-blue-300' :
-                        solicitud.estado === SolicitudStatus.COMPLETADO ? 'bg-green-100 text-green-700 border border-green-300' :
-                        solicitud.estado === SolicitudStatus.CANCELADO ? 'bg-red-100 text-red-700 border border-red-300' : 
-                        'bg-gray-100 text-gray-700 border border-gray-300'
-                      }`}>
-                        {solicitud.estado}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                       <Button variant="ghost" size="icon" onClick={() => handleEdit(solicitud as SolicitudDataWithId as DeliveryRequestData & {id:string})} title="Editar">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteConfirmation(solicitud.id!)} title="Eliminar" className="text-destructive hover:text-destructive/80">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <DeliveryTable
+              solicitudes={filteredSolicitudes}
+              onViewDetails={handleViewDetails}
+              onEdit={handleEdit}
+              onDelete={handleDeleteConfirmation}
+            />
           )}
         </CardContent>
       </Card>
@@ -236,6 +195,12 @@ export default function DeliveryPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <DeliveryDetailsModal
+        solicitud={selectedSolicitud}
+        isOpen={isViewDetailsModalOpen}
+        onOpenChange={setIsViewDetailsModalOpen}
+      />
 
       <AlertDialog open={!!solicitudToDeleteId} onOpenChange={() => setSolicitudToDeleteId(null)}>
         <AlertDialogContent>
