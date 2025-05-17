@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,6 +23,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { addSolicitud } from "@/services/firestoreService";
+import type { MensajeriaRequestData } from "@/types/requestTypes";
+import { Timestamp } from "firebase/firestore";
 
 const courierFormSchema = z.object({
   senderName: z.string().min(2, "El nombre del remitente es requerido."),
@@ -34,6 +38,11 @@ const courierFormSchema = z.object({
   serviceType: z.enum(["standard", "express"], {
     required_error: "Debe seleccionar un tipo de servicio.",
   }),
+  peso: z.coerce.number().positive("El peso debe ser un número positivo.").optional(),
+  dimensionesAncho: z.coerce.number().positive("El ancho debe ser positivo.").optional(),
+  dimensionesAlto: z.coerce.number().positive("El alto debe ser positivo.").optional(),
+  dimensionesLargo: z.coerce.number().positive("El largo debe ser positivo.").optional(),
+  fechaRecoleccionDeseada: z.string().min(1, "La fecha de recolección es requerida."),
 });
 
 type CourierFormValues = z.infer<typeof courierFormSchema>;
@@ -51,16 +60,52 @@ export default function CourierForm() {
       destinationAddress: "",
       packageDescription: "",
       serviceType: undefined,
+      peso: undefined,
+      dimensionesAncho: undefined,
+      dimensionesAlto: undefined,
+      dimensionesLargo: undefined,
+      fechaRecoleccionDeseada: "",
     },
   });
 
-  function onSubmit(data: CourierFormValues) {
-    console.log(data);
-    toast({
-      title: "Solicitud Enviada",
-      description: "Su solicitud de mensajería ha sido registrada.",
-    });
-    form.reset();
+  async function onSubmit(data: CourierFormValues) {
+    try {
+      const solicitudData: Omit<MensajeriaRequestData, "id" | "fechaCreacion"> = {
+        tipo: "mensajeria",
+        senderName: data.senderName,
+        senderPhone: data.senderPhone,
+        origen: data.originAddress,
+        recipientName: data.recipientName,
+        recipientPhone: data.recipientPhone,
+        destino: data.destinationAddress,
+        descripcionPaquete: data.packageDescription,
+        serviceType: data.serviceType,
+        fechaRecoleccionDeseada: Timestamp.fromDate(new Date(data.fechaRecoleccionDeseada)),
+        ...(data.peso && { peso: data.peso }),
+        ...(data.dimensionesAncho && data.dimensionesAlto && data.dimensionesLargo && {
+          dimensiones: {
+            ancho: data.dimensionesAncho,
+            alto: data.dimensionesAlto,
+            largo: data.dimensionesLargo,
+          },
+        }),
+      };
+
+      await addSolicitud(solicitudData);
+
+      toast({
+        title: "Solicitud Enviada",
+        description: "Su solicitud de mensajería ha sido registrada en Firestore.",
+      });
+      form.reset();
+    } catch (error) {
+      console.error("Error creating mensajeria request:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo registrar la solicitud. Intente nuevamente.",
+        variant: "destructive",
+      });
+    }
   }
 
   return (
@@ -166,6 +211,73 @@ export default function CourierForm() {
                 <FormLabel>Descripción del Paquete</FormLabel>
                 <FormControl>
                   <Textarea placeholder="Ej: Documentos importantes, caja pequeña con repuestos" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+           <FormField
+            control={form.control}
+            name="peso"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Peso (kg) (Opcional)</FormLabel>
+                <FormControl>
+                  <Input type="number" placeholder="Ej: 2.5" {...field} onChange={event => field.onChange(parseFloat(event.target.value))} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <FormField
+              control={form.control}
+              name="dimensionesAncho"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Ancho (cm) (Opcional)</FormLabel>
+                  <FormControl>
+                    <Input type="number" placeholder="Ej: 20" {...field} onChange={event => field.onChange(parseFloat(event.target.value))}/>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="dimensionesAlto"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Alto (cm) (Opcional)</FormLabel>
+                  <FormControl>
+                    <Input type="number" placeholder="Ej: 15" {...field} onChange={event => field.onChange(parseFloat(event.target.value))}/>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="dimensionesLargo"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Largo (cm) (Opcional)</FormLabel>
+                  <FormControl>
+                    <Input type="number" placeholder="Ej: 30" {...field} onChange={event => field.onChange(parseFloat(event.target.value))}/>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <FormField
+            control={form.control}
+            name="fechaRecoleccionDeseada"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Fecha y Hora de Recolección Deseada</FormLabel>
+                <FormControl>
+                  <Input type="datetime-local" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>

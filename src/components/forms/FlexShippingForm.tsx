@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -15,11 +17,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import AddressAutocompleteInput from "@/components/shared/AddressAutocompleteInput";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, Trash2 } from "lucide-react";
+import { addSolicitud } from "@/services/firestoreService";
+import type { EnvioFlexRequestData, PuntoEntrega } from "@/types/requestTypes";
 
 const deliveryPointSchema = z.object({
   address: z.string().min(10, "La dirección es requerida."),
+  descripcionPaquete: z.string().min(5, "La descripción del paquete es requerida."),
   contactName: z.string().min(2, "El nombre de contacto es requerido.").optional(),
   contactPhone: z.string().min(7, "El teléfono de contacto es requerido.").optional(),
 });
@@ -28,6 +35,7 @@ const flexShippingFormSchema = z.object({
   originAddress: z.string().min(10, "La dirección de origen es requerida."),
   deliveryPoints: z.array(deliveryPointSchema).min(1, "Se requiere al menos un punto de entrega."),
   shippingPreferences: z.string().optional(),
+  requiereConfirmacionEntrega: z.boolean().optional(),
 });
 
 type FlexShippingFormValues = z.infer<typeof flexShippingFormSchema>;
@@ -38,8 +46,9 @@ export default function FlexShippingForm() {
     resolver: zodResolver(flexShippingFormSchema),
     defaultValues: {
       originAddress: "",
-      deliveryPoints: [{ address: "" , contactName: "", contactPhone: ""}],
+      deliveryPoints: [{ address: "", descripcionPaquete: "" , contactName: "", contactPhone: ""}],
       shippingPreferences: "",
+      requiereConfirmacionEntrega: false,
     },
   });
 
@@ -48,13 +57,38 @@ export default function FlexShippingForm() {
     name: "deliveryPoints",
   });
 
-  function onSubmit(data: FlexShippingFormValues) {
-    console.log(data);
-    toast({
-      title: "Envío Flex Configurado",
-      description: "Su configuración de envío flexible ha sido guardada.",
-    });
-    form.reset();
+  async function onSubmit(data: FlexShippingFormValues) {
+    try {
+      const puntosEntrega: PuntoEntrega[] = data.deliveryPoints.map(dp => ({
+        direccion: dp.address,
+        descripcionPaquete: dp.descripcionPaquete,
+        ...(dp.contactName && { contactName: dp.contactName }),
+        ...(dp.contactPhone && { contactPhone: dp.contactPhone }),
+      }));
+
+      const solicitudData: Omit<EnvioFlexRequestData, "id" | "fechaCreacion"> = {
+        tipo: "envio_flex",
+        originAddress: data.originAddress,
+        puntosEntrega: puntosEntrega,
+        ...(data.shippingPreferences && { ventanaHorariaPreferida: data.shippingPreferences }),
+        ...(data.requiereConfirmacionEntrega && { requiereConfirmacionEntrega: data.requiereConfirmacionEntrega }),
+      };
+
+      await addSolicitud(solicitudData);
+
+      toast({
+        title: "Envío Flex Configurado",
+        description: "Su configuración de envío flexible ha sido guardada en Firestore.",
+      });
+      form.reset();
+    } catch (error) {
+      console.error("Error creating flex shipping request:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo guardar la configuración. Intente nuevamente.",
+        variant: "destructive",
+      });
+    }
   }
 
   return (
@@ -94,7 +128,7 @@ export default function FlexShippingForm() {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => append({ address: "", contactName: "", contactPhone: "" })}
+              onClick={() => append({ address: "", descripcionPaquete: "", contactName: "", contactPhone: "" })}
             >
               <PlusCircle className="mr-2 h-4 w-4" /> Añadir Punto
             </Button>
@@ -133,6 +167,19 @@ export default function FlexShippingForm() {
                           />
                         )}
                       />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name={`deliveryPoints.${index}.descripcionPaquete`}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Descripción del Paquete</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Ej: Documentos, caja pequeña" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -181,13 +228,13 @@ export default function FlexShippingForm() {
         </div>
 
         <div className="space-y-4">
-          <h3 className="text-lg font-medium">Preferencias de Envío</h3>
+          <h3 className="text-lg font-medium">Preferencias Adicionales</h3>
           <FormField
             control={form.control}
             name="shippingPreferences"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Notas o Preferencias Adicionales (Opcional)</FormLabel>
+                <FormLabel>Ventana Horaria / Notas (Opcional)</FormLabel>
                 <FormControl>
                   <Textarea
                     placeholder="Ej: Entregar entre 9 AM y 5 PM, evitar horas pico, contactar antes de llegar."
@@ -195,6 +242,28 @@ export default function FlexShippingForm() {
                   />
                 </FormControl>
                 <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="requiereConfirmacionEntrega"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel>
+                    ¿Requiere confirmación de entrega?
+                  </FormLabel>
+                  <FormDescription>
+                    Marque si necesita una confirmación una vez se complete la entrega.
+                  </FormDescription>
+                </div>
               </FormItem>
             )}
           />
@@ -207,4 +276,3 @@ export default function FlexShippingForm() {
     </Form>
   );
 }
-

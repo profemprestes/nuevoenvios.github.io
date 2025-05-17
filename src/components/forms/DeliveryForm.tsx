@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,15 +17,20 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import AddressAutocompleteInput from "@/components/shared/AddressAutocompleteInput";
 import { useToast } from "@/hooks/use-toast";
+import { addSolicitud } from "@/services/firestoreService";
+import type { DeliveryRequestData } from "@/types/requestTypes";
+import { Timestamp } from "firebase/firestore";
 
 const deliveryFormSchema = z.object({
   pickupAddress: z.string().min(10, "La dirección de recogida es requerida."),
-  deliveryAddress: z.string().min(10, "La dirección de entrega es requerida."),
   contactNamePickup: z.string().min(2, "El nombre de contacto en recogida es requerido."),
   contactPhonePickup: z.string().min(7, "El teléfono de contacto en recogida es requerido."),
+  deliveryAddress: z.string().min(10, "La dirección de entrega es requerida."),
   contactNameDelivery: z.string().min(2, "El nombre de contacto en entrega es requerido."),
   contactPhoneDelivery: z.string().min(7, "El teléfono de contacto en entrega es requerido."),
   packageDetails: z.string().min(5, "Los detalles del paquete son requeridos."),
+  instruccionesEspeciales: z.string().optional(),
+  fechaEntregaDeseada: z.string().min(1, "La fecha de entrega es requerida."),
 });
 
 type DeliveryFormValues = z.infer<typeof deliveryFormSchema>;
@@ -35,22 +41,47 @@ export default function DeliveryForm() {
     resolver: zodResolver(deliveryFormSchema),
     defaultValues: {
       pickupAddress: "",
-      deliveryAddress: "",
       contactNamePickup: "",
       contactPhonePickup: "",
+      deliveryAddress: "",
       contactNameDelivery: "",
       contactPhoneDelivery: "",
       packageDetails: "",
+      instruccionesEspeciales: "",
+      fechaEntregaDeseada: "",
     },
   });
 
-  function onSubmit(data: DeliveryFormValues) {
-    console.log(data);
-    toast({
-      title: "Solicitud de Delivery Enviada",
-      description: "Su solicitud de delivery ha sido registrada.",
-    });
-    form.reset();
+  async function onSubmit(data: DeliveryFormValues) {
+    try {
+      const solicitudData: Omit<DeliveryRequestData, "id" | "fechaCreacion"> = {
+        tipo: "delivery",
+        direccionOrigen: data.pickupAddress,
+        contactNamePickup: data.contactNamePickup,
+        contactPhonePickup: data.contactPhonePickup,
+        direccionDestino: data.deliveryAddress,
+        nombreDestinatario: data.contactNameDelivery,
+        telefonoDestinatario: data.contactPhoneDelivery,
+        packageDetails: data.packageDetails,
+        fechaEntregaDeseada: Timestamp.fromDate(new Date(data.fechaEntregaDeseada)),
+        ...(data.instruccionesEspeciales && { instruccionesEspeciales: data.instruccionesEspeciales }),
+      };
+
+      await addSolicitud(solicitudData);
+
+      toast({
+        title: "Solicitud de Delivery Enviada",
+        description: "Su solicitud de delivery ha sido registrada en Firestore.",
+      });
+      form.reset();
+    } catch (error) {
+      console.error("Error creating delivery request:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo registrar la solicitud. Intente nuevamente.",
+        variant: "destructive",
+      });
+    }
   }
 
   return (
@@ -167,7 +198,7 @@ export default function DeliveryForm() {
         </div>
 
         <div className="space-y-4">
-          <h3 className="text-lg font-medium">Detalles del Paquete</h3>
+          <h3 className="text-lg font-medium">Detalles del Paquete e Instrucciones</h3>
           <FormField
             control={form.control}
             name="packageDetails"
@@ -176,6 +207,32 @@ export default function DeliveryForm() {
                 <FormLabel>Descripción del Paquete</FormLabel>
                 <FormControl>
                   <Textarea placeholder="Ej: Caja mediana (10kg), flores, comida preparada" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+           <FormField
+            control={form.control}
+            name="instruccionesEspeciales"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Instrucciones Especiales (Opcional)</FormLabel>
+                <FormControl>
+                  <Textarea placeholder="Ej: Entregar en portería, llamar antes de llegar." {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+           <FormField
+            control={form.control}
+            name="fechaEntregaDeseada"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Fecha y Hora de Entrega Deseada</FormLabel>
+                <FormControl>
+                  <Input type="datetime-local" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
