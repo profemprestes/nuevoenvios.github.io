@@ -1,0 +1,136 @@
+
+{
+  "solicitudes": [
+    // Solicitudes de Mensajería
+    {
+      "tipo": "mensajeria",
+      "origen": "Av. 18 de Julio 1234, Montevideo, Montevideo",
+      "destino": "Rambla Mahatma Gandhi 567, Montevideo, Montevideo",
+      "descripcion_paquete": "Documentos importantes urgentes",
+      "peso": 0.5,
+      "dimensiones": { "ancho": 30, "alto": 20, "largo": 5 },
+      "fecha_recoleccion_deseada": "2024-08-10T10:00:00Z",
+      "fecha_creacion": "2024-08-03T14:30:00Z"
+    },
+    {
+      "tipo": "mensajeria",
+      "origen": "Bulevar Artigas 890, Las Piedras, Canelones",
+      "destino": "Av. Italia 4321, Montevideo, Montevideo",
+      "descripcion_paquete": "Caja con repuestos electrónicos",
+      "peso": 2.3,
+      "dimensiones": { "ancho": 25, "alto": 15, "largo": 20 },
+      "fecha_recoleccion_deseada": "2024-08-12T15:00:00Z",
+      "fecha_creacion": "2024-08-01T11:00:00Z"
+    },
+    {
+      "tipo": "mensajeria",
+      "origen": "Calle Sarandí 101, Colonia del Sacramento, Colonia",
+      "destino": "Calle Rincón 202, Carmelo, Colonia",
+      "descripcion_paquete": "Sobre con muestras de tela",
+      "peso": 0.2,
+      "fecha_recoleccion_deseada": "2024-08-15T09:30:00Z",
+      "fecha_creacion": "2024-08-02T18:15:00Z"
+    },
+    {
+      "tipo": "mensajeria",
+      "origen": "Av. Roosevelt Parada 8, Punta del Este, Maldonado",
+      "destino": "Calle 20 (El Remanso) 789, Punta del Este, Maldonado",
+      "descripcion_paquete": "Libro tapa dura",
+      "peso": 1.1,
+      "dimensiones": { "ancho": 18, "alto": 25, "largo": 3 },
+      "fecha_recoleccion_deseada": "2024-08-09T11:00:00Z",
+      "fecha_creacion": "2024-08-04T09:00:00Z"
+    },
+    {
+      "tipo": "mensajeria",
+      "origen": "Calle Uruguay 555, Salto, Salto",
+      "destino": "Calle Artigas 777, Concordia, Entre Ríos (AR)",
+      "descripcion_paquete": "Pequeña artesanía frágil",
+      "peso": 0.8,
+      "fecha_recoleccion_deseada": "2024-08-18T14:00:00Z",
+      "fecha_creacion": "2024-08-05T16:45:00Z"
+    },
+    // Solicitudes de Delivery
+    {
+      "tipo": "delivery",
+      "direccion_origen": "Luis Alberto de Herrera 3365, Montevideo, Montevideo",
+      "direccion_destino": "Av. Gral. Rivera 2245, Montevideo, Montevideo",
+      "nombre_destinatario": "Ana Pérez",
+      "numero_telefono_destinatario": "099123456",
+      "instrucciones_especiales": "Dejar en portería con el Sr. Jorge.",
+      "fecha_entrega_deseada": "2024-08-08T18:00:00Z",
+      "fecha_creacion": "2024-08-04T10:20:00Z"
+    },
+    {
+      "tipo": "delivery",
+      "direccion_origen": "Supermercado Disco, Av. Giannattasio Km 21, Ciudad de la Costa, Canelones",
+      "direccion_destino": "Calle Solymar 1122, Ciudad de la Costa, Canelones",
+      "nombre_destinatario": "Carlos Rodríguez",
+      "numero_telefono_destinatario": "098765432",
+      "instrucciones_especiales": "Llamar al llegar, es un complejo de apartamentos.",
+      "fecha_entrega_deseada": "2024-08-07T12:30:00Z",
+      "fecha_creacion": "2024-08-03T09:00:00Z"
+    },
+    {
+      "tipo": "delivery",
+      "direccion_origen": "Farmacia San Roque, 8 de Octubre 3450, Montevideo, Montevideo",
+      "direccion_destino": "Coronel Alegre 1345, Apto 301, Montevideo, Montevideo",
+      "nombre_destinatario": "Laura Fernández",
+      "numero_telefono_destinatario": "091234567",
+      "fecha_entrega_deseada": "2024-08-09T16:00:00Z",
+      "fecha_creacion": "2024-08-05T13:10:00Z"
+    },
+    {
+      "tipo": "delivery",
+      "direccion_origen": "Restaurante La Pasiva, Peatonal Sarandí, Montevideo, Montevideo",
+      "direccion_destino": "Bacacay 1325, Of. 2, Montevideo, Montevideo",
+      "nombre_destinatario": "Martín Silva",
+      "numero_telefono_destinatario": "095678901",
+      "instrucciones_especiales": "Es un pedido de comida. Tocar timbre oficina 2.",
+      "fecha_entrega_deseada": "2024-08-06T13:00:00Z",
+      "fecha_creacion": "2024-08-05T12:30:00Z"
+    },
+    {
+      "tipo": "delivery",
+      "direccion_origen": "Tienda de Ropa Zara, Punta Carretas Shopping, Montevideo, Montevideo",
+      "direccion_destino": "Ellauri 987, Apto 1204, Montevideo, Montevideo",
+      "nombre_destinatario": "Sofía Gómez",
+      "numero_telefono_destinatario": "094321654",
+      "instrucciones_especiales": "Entregar solo a titular con CI.",
+      "fecha_entrega_deseada": "2024-08-11T17:00:00Z",
+      "fecha_creacion": "2024-08-02T15:00:00Z"
+    },
+    // Solicitudes de Envíos Flex
+    {
+      "tipo": "envio_flex",
+      "puntos_entrega": [
+        { "direccion": "Av. Brasil 2801, Montevideo, Montevideo", "descripcion_paquete": "Paquete A - Ropa" },
+        { "direccion": "Scosería 2525, Montevideo, Montevideo", "descripcion_paquete": "Paquete B - Libros" }
+      ],
+      "ventana_horaria_entrega_preferida": "Entre las 10 y las 14",
+      "requiere_confirmacion_entrega": true,
+      "fecha_creacion": "2024-08-05T08:00:00Z"
+    },
+    {
+      "tipo": "envio_flex",
+      "puntos_entrega": [
+        { "direccion": "Av. Italia 3370, Montevideo, Montevideo", "descripcion_paquete": "Caja Suministros Oficina" },
+        { "direccion": "Mercedes 901, Montevideo, Montevideo", "descripcion_paquete": "Documentos confidenciales" },
+        { "direccion": "Plaza Independencia 759, Montevideo, Montevideo", "descripcion_paquete": "Muestras producto nuevo" }
+      ],
+      "ventana_horaria_entrega_preferida": "Después de las 15:00",
+      "requiere_confirmacion_entrega": false,
+      "fecha_creacion": "2024-08-04T17:30:00Z"
+    },
+    {
+      "tipo": "envio_flex",
+      "puntos_entrega": [
+        { "direccion": "Av. Libertador 1672, Montevideo, Montevideo", "descripcion_paquete": "Regalo para Juan" },
+        { "direccion": "Paraguay 1470, Montevideo, Montevideo", "descripcion_paquete": "Material promocional" }
+      ],
+      "ventana_horaria_entrega_preferida": "Cualquier horario entre 9 y 18",
+      "requiere_confirmacion_entrega": true,
+      "fecha_creacion": "2024-08-03T12:00:00Z"
+    }
+  ]
+}
