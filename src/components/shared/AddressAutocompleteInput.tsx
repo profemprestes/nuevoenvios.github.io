@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ChangeEvent } from 'react';
@@ -109,8 +110,9 @@ export default function AddressAutocompleteInput({
             {suggestions.map((suggestion, index) => (
               <li
                 key={index}
-                className="cursor-pointer px-3 py-2 hover:bg-accent hover:text-accent-foreground"
+                className="cursor-pointer truncate px-3 py-2 hover:bg-accent hover:text-accent-foreground"
                 onMouseDown={() => handleSuggestionClick(suggestion)} // Use onMouseDown to fire before blur
+                title={suggestion}
               >
                 {suggestion}
               </li>
@@ -121,3 +123,4 @@ export default function AddressAutocompleteInput({
     </div>
   );
 }
+
