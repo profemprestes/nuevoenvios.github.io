@@ -5,6 +5,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import FlexShippingForm from "@/components/forms/FlexShippingForm";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -34,7 +35,7 @@ import { getSolicitudesPorTipo, deleteSolicitud } from "@/services/firestoreServ
 import type { EnvioFlexRequestData, SolicitudDataWithId } from "@/types/requestTypes";
 import { SolicitudStatus } from "@/types/requestTypes";
 import { useToast } from "@/hooks/use-toast";
-import { Edit, Trash2, PlusCircle } from "lucide-react";
+import { Edit, Trash2, PlusCircle, Search } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 
 const formatTimestampForDisplay = (timestamp?: Timestamp): string => {
@@ -49,6 +50,7 @@ export default function EnviosFlexPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedSolicitud, setSelectedSolicitud] = useState<(EnvioFlexRequestData & { id: string }) | null>(null);
   const [solicitudToDeleteId, setSolicitudToDeleteId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { toast } = useToast();
 
@@ -115,25 +117,49 @@ export default function EnviosFlexPage() {
     fetchSolicitudes();
   };
 
+  const filteredSolicitudes = solicitudes.filter(solicitud => {
+    const term = searchTerm.toLowerCase();
+    return (
+      solicitud.originAddress?.toLowerCase().includes(term) ||
+      solicitud.ventanaHorariaPreferida?.toLowerCase().includes(term) ||
+      solicitud.estado?.toLowerCase().includes(term) ||
+      solicitud.puntosEntrega.some(p => p.direccion.toLowerCase().includes(term) || p.descripcionPaquete.toLowerCase().includes(term))
+    );
+  });
+
   return (
     <div className="container mx-auto py-8 space-y-6">
       <Card className="shadow-xl">
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <CardTitle className="text-2xl font-semibold">Gestión de Envíos Flex</CardTitle>
             <CardDescription>
               Visualice, cree, edite o elimine configuraciones de envíos flex.
             </CardDescription>
           </div>
-          <Button onClick={handleCreateNew} className="bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] hover:bg-[hsl(var(--accent)/0.9)]">
-            <PlusCircle className="mr-2 h-4 w-4" /> Nueva Configuración
-          </Button>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full md:w-auto">
+            <div className="relative w-full md:max-w-xs">
+                <Input
+                    type="text"
+                    placeholder="Filtrar por origen, preferencia..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 w-full"
+                />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            </div>
+            <Button onClick={handleCreateNew} className="bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] hover:bg-[hsl(var(--accent)/0.9)] w-full sm:w-auto">
+              <PlusCircle className="mr-2 h-4 w-4" /> Nueva Configuración
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <p>Cargando configuraciones...</p>
-          ) : solicitudes.length === 0 ? (
-            <p className="text-center text-muted-foreground py-4">No hay configuraciones de envío flex registradas.</p>
+          ) : filteredSolicitudes.length === 0 ? (
+            <p className="text-center text-muted-foreground py-4">
+              {solicitudes.length > 0 ? "No hay configuraciones que coincidan con su búsqueda." : "No hay configuraciones de envío flex registradas."}
+            </p>
           ) : (
             <Table>
               <TableHeader>
@@ -146,17 +172,18 @@ export default function EnviosFlexPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {solicitudes.map((solicitud) => (
+                {filteredSolicitudes.map((solicitud) => (
                   <TableRow key={solicitud.id}>
                     <TableCell className="font-medium truncate max-w-xs">{solicitud.originAddress}</TableCell>
                     <TableCell className="hidden md:table-cell">{solicitud.puntosEntrega.length}</TableCell>
                     <TableCell className="hidden lg:table-cell truncate max-w-xs">{solicitud.ventanaHorariaPreferida || "N/A"}</TableCell>
                     <TableCell>
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        solicitud.estado === SolicitudStatus.PENDIENTE ? 'bg-yellow-200 text-yellow-800' :
-                        solicitud.estado === SolicitudStatus.EN_PROCESO ? 'bg-blue-200 text-blue-800' :
-                        solicitud.estado === SolicitudStatus.COMPLETADO ? 'bg-green-200 text-green-800' :
-                        solicitud.estado === SolicitudStatus.CANCELADO ? 'bg-red-200 text-red-800' : 'bg-gray-200 text-gray-800'
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                        solicitud.estado === SolicitudStatus.PENDIENTE ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
+                        solicitud.estado === SolicitudStatus.EN_PROCESO ? 'bg-blue-100 text-blue-700 border border-blue-300' :
+                        solicitud.estado === SolicitudStatus.COMPLETADO ? 'bg-green-100 text-green-700 border border-green-300' :
+                        solicitud.estado === SolicitudStatus.CANCELADO ? 'bg-red-100 text-red-700 border border-red-300' : 
+                        'bg-gray-100 text-gray-700 border border-gray-300'
                       }`}>
                         {solicitud.estado}
                       </span>
@@ -177,9 +204,8 @@ export default function EnviosFlexPage() {
         </CardContent>
       </Card>
 
-      {/* Create Modal */}
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="sm:max-w-3xl"> {/* Adjusted max-width for potentially larger form */}
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Nueva Configuración de Envío Flex</DialogTitle>
             <DialogDescription>
@@ -190,7 +216,6 @@ export default function EnviosFlexPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
@@ -208,7 +233,6 @@ export default function EnviosFlexPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!solicitudToDeleteId} onOpenChange={() => setSolicitudToDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

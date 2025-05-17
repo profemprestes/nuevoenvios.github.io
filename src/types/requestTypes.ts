@@ -27,7 +27,7 @@ export interface PuntoEntrega {
 interface BaseRequest {
   id?: string; // Firestore document ID
   tipo: 'mensajeria' | 'delivery' | 'envio_flex';
-  estado: SolicitudEstado;
+  estado: SolicitudEstado; // Made non-optional here
   fechaCreacion: Timestamp;
 }
 
@@ -35,10 +35,10 @@ export interface MensajeriaRequestData extends BaseRequest {
   tipo: 'mensajeria';
   senderName: string;
   senderPhone: string;
-  origen: string; // Corresponds to originAddress in form
+  origen: string; 
   recipientName: string;
   recipientPhone: string;
-  destino: string; // Corresponds to destinationAddress in form
+  destino: string; 
   descripcionPaquete: string;
   serviceType: 'standard' | 'express';
   peso?: number;
@@ -48,13 +48,13 @@ export interface MensajeriaRequestData extends BaseRequest {
 
 export interface DeliveryRequestData extends BaseRequest {
   tipo: 'delivery';
-  direccionOrigen: string; // Corresponds to pickupAddress in form
+  direccionOrigen: string; 
   contactNamePickup: string;
   contactPhonePickup: string;
-  direccionDestino: string; // Corresponds to deliveryAddress in form
-  nombreDestinatario: string; // Corresponds to contactNameDelivery in form
-  telefonoDestinatario: string; // Corresponds to contactPhoneDelivery in form
-  packageDetails: string; // Description of what is being delivered
+  direccionDestino: string; 
+  nombreDestinatario: string; 
+  telefonoDestinatario: string; 
+  packageDetails: string; 
   instruccionesEspeciales?: string;
   fechaEntregaDeseada: Timestamp;
 }
@@ -63,11 +63,16 @@ export interface EnvioFlexRequestData extends BaseRequest {
   tipo: 'envio_flex';
   originAddress: string;
   puntosEntrega: PuntoEntrega[];
-  ventanaHorariaPreferida?: string; // Corresponds to shippingPreferences in form
+  ventanaHorariaPreferida?: string; 
   requiereConfirmacionEntrega?: boolean;
 }
 
 export type SolicitudData = MensajeriaRequestData | DeliveryRequestData | EnvioFlexRequestData;
 
-// Helper type to ensure ID is present when we know it (e.g., after fetching or for editing)
 export type SolicitudDataWithId = SolicitudData & { id: string };
+
+// Specific type for forms where 'estado' might be optional initially or in initialData
+export type MensajeriaRequestFormData = Omit<MensajeriaRequestData, 'fechaCreacion' | 'estado'> & { id?: string; estado?: SolicitudEstado };
+export type DeliveryRequestFormData = Omit<DeliveryRequestData, 'fechaCreacion' | 'estado'> & { id?: string; estado?: SolicitudEstado };
+export type EnvioFlexRequestFormData = Omit<EnvioFlexRequestData, 'fechaCreacion' | 'estado'> & { id?: string; estado?: SolicitudEstado };
+
