@@ -1,3 +1,4 @@
+// src/components/ui/sidebar.tsx
 "use client"
 
 import * as React from "react"
@@ -6,6 +7,7 @@ import { VariantProps, cva } from "class-variance-authority"
 import { PanelLeft } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useMounted } from "@/hooks/use-mounted" // Added
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -176,8 +178,16 @@ const Sidebar = React.forwardRef<
     ref
   ) => {
     const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+    const mounted = useMounted();
 
-    if (collapsible === "none") {
+    if (!mounted) {
+      // Render null or a minimal placeholder during SSR and initial client render
+      // to prevent hydration mismatch for the main sidebar structure.
+      // Given the desktop sidebar has "hidden md:block", returning null is often safe.
+      return null;
+    }
+
+    if (collapsible === "none" && !isMobile) { // Ensure "none" collapsible only applies to desktop
       return (
         <div
           className={cn(
@@ -191,7 +201,7 @@ const Sidebar = React.forwardRef<
         </div>
       )
     }
-
+    
     if (isMobile) {
       return (
         <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
@@ -211,7 +221,8 @@ const Sidebar = React.forwardRef<
         </Sheet>
       )
     }
-
+    
+    // Desktop sidebar logic (collapsible "icon" or "offcanvas")
     return (
       <div
         ref={ref}
@@ -555,6 +566,8 @@ const SidebarMenuButton = React.forwardRef<
   ) => {
     const Comp = asChild ? Slot : "button"
     const { isMobile, state } = useSidebar()
+    const mounted = useMounted();
+
 
     const button = (
       <Comp
@@ -567,7 +580,7 @@ const SidebarMenuButton = React.forwardRef<
       />
     )
 
-    if (!tooltip) {
+    if (!tooltip || !mounted) { // Also check mounted for tooltip
       return button
     }
 
