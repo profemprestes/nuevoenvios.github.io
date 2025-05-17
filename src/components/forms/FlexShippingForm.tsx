@@ -21,8 +21,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, Trash2 } from "lucide-react";
-import { addSolicitud } from "@/services/firestoreService";
-import type { EnvioFlexRequestData, PuntoEntrega } from "@/types/requestTypes";
+import { addSolicitud, updateSolicitud } from "@/services/firestoreService";
+import type { EnvioFlexRequestData, PuntoEntrega, SolicitudEstado } from "@/types/requestTypes";
+import { SolicitudStatus } from "@/types/requestTypes";
+import React, { useEffect } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const deliveryPointSchema = z.object({
   address: z.string().min(10, "La dirección es requerida."),
@@ -36,19 +39,26 @@ const flexShippingFormSchema = z.object({
   deliveryPoints: z.array(deliveryPointSchema).min(1, "Se requiere al menos un punto de entrega."),
   shippingPreferences: z.string().optional(),
   requiereConfirmacionEntrega: z.boolean().optional(),
+  estado: z.nativeEnum(SolicitudStatus).optional(),
 });
 
-type FlexShippingFormValues = z.infer<typeof flexShippingFormSchema>;
+export type FlexShippingFormValues = z.infer<typeof flexShippingFormSchema>;
 
-export default function FlexShippingForm() {
+interface FlexShippingFormProps {
+  initialData?: EnvioFlexRequestData & { id: string };
+  onSaveSuccess: () => void;
+}
+
+export default function FlexShippingForm({ initialData, onSaveSuccess }: FlexShippingFormProps) {
   const { toast } = useToast();
   const form = useForm<FlexShippingFormValues>({
     resolver: zodResolver(flexShippingFormSchema),
     defaultValues: {
       originAddress: "",
-      deliveryPoints: [{ address: "", descripcionPaquete: "" , contactName: "", contactPhone: ""}],
+      deliveryPoints: [{ address: "", descripcionPaquete: "", contactName: "", contactPhone: ""}],
       shippingPreferences: "",
       requiereConfirmacionEntrega: false,
+      estado: SolicitudStatus.PENDIENTE,
     },
   });
 
@@ -56,6 +66,33 @@ export default function FlexShippingForm() {
     control: form.control,
     name: "deliveryPoints",
   });
+
+  const mode = initialData ? 'edit' : 'create';
+
+  useEffect(() => {
+    if (initialData) {
+      form.reset({
+        originAddress: initialData.originAddress,
+        deliveryPoints: initialData.puntosEntrega.map(p => ({
+          address: p.direccion,
+          descripcionPaquete: p.descripcionPaquete,
+          contactName: p.contactName || "",
+          contactPhone: p.contactPhone || "",
+        })),
+        shippingPreferences: initialData.ventanaHorariaPreferida || "",
+        requiereConfirmacionEntrega: initialData.requiereConfirmacionEntrega || false,
+        estado: initialData.estado || SolicitudStatus.PENDIENTE,
+      });
+    } else {
+        form.reset({
+            originAddress: "",
+            deliveryPoints: [{ address: "", descripcionPaquete: "", contactName: "", contactPhone: ""}],
+            shippingPreferences: "",
+            requiereConfirmacionEntrega: false,
+            estado: SolicitudStatus.PENDIENTE,
+        });
+    }
+  }, [initialData, form]);
 
   async function onSubmit(data: FlexShippingFormValues) {
     try {
@@ -66,26 +103,41 @@ export default function FlexShippingForm() {
         ...(dp.contactPhone && { contactPhone: dp.contactPhone }),
       }));
 
-      const solicitudData: Omit<EnvioFlexRequestData, "id" | "fechaCreacion"> = {
-        tipo: "envio_flex",
+      const commonData = {
         originAddress: data.originAddress,
         puntosEntrega: puntosEntrega,
+        estado: data.estado || SolicitudStatus.PENDIENTE,
         ...(data.shippingPreferences && { ventanaHorariaPreferida: data.shippingPreferences }),
         ...(data.requiereConfirmacionEntrega && { requiereConfirmacionEntrega: data.requiereConfirmacionEntrega }),
       };
 
-      await addSolicitud(solicitudData);
-
-      toast({
-        title: "Envío Flex Configurado",
-        description: "Su configuración de envío flexible ha sido guardada en Firestore.",
-      });
-      form.reset();
+      if (mode === 'edit' && initialData?.id) {
+        await updateSolicitud(initialData.id, {
+            tipo: "envio_flex",
+            ...commonData,
+        });
+        toast({
+          title: "Envío Flex Actualizado",
+          description: "La configuración de envío flexible ha sido actualizada.",
+        });
+      } else {
+        const solicitudToCreate: Omit<EnvioFlexRequestData, "id" | "fechaCreacion"> = {
+            tipo: "envio_flex",
+            ...commonData,
+        };
+        await addSolicitud(solicitudToCreate);
+        toast({
+          title: "Envío Flex Configurado",
+          description: "Su configuración de envío flexible ha sido guardada.",
+        });
+      }
+      onSaveSuccess();
+      if (mode === 'create') form.reset();
     } catch (error) {
-      console.error("Error creating flex shipping request:", error);
+      console.error(`Error ${mode === 'edit' ? 'updating' : 'creating'} flex shipping request:`, error);
       toast({
         title: "Error",
-        description: "No se pudo guardar la configuración. Intente nuevamente.",
+        description: `No se pudo ${mode === 'edit' ? 'actualizar' : 'guardar'} la configuración. Intente nuevamente.`,
         variant: "destructive",
       });
     }
@@ -93,7 +145,7 @@ export default function FlexShippingForm() {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <div className="space-y-4">
           <h3 className="text-lg font-medium">Información de Origen</h3>
           <FormField
@@ -249,7 +301,7 @@ export default function FlexShippingForm() {
             control={form.control}
             name="requiereConfirmacionEntrega"
             render={({ field }) => (
-              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow">
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
                 <FormControl>
                   <Checkbox
                     checked={field.value}
@@ -267,10 +319,34 @@ export default function FlexShippingForm() {
               </FormItem>
             )}
           />
+          {mode === 'edit' && (
+            <FormField
+              control={form.control}
+              name="estado"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Estado</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccione un estado" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.values(SolicitudStatus).map(status => (
+                        <SelectItem key={status} value={status}>{status}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
 
         <Button type="submit" className="w-full bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] hover:bg-[hsl(var(--accent)/0.9)]" size="lg">
-          Cotizá tu envío Flex
+          {mode === 'edit' ? 'Actualizar Envío Flex' : 'Cotizá tu envío Flex'}
         </Button>
       </form>
     </Form>

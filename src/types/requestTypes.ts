@@ -1,5 +1,15 @@
+
 // src/types/requestTypes.ts
 import type { Timestamp } from 'firebase/firestore';
+
+export const SolicitudStatus = {
+  PENDIENTE: "Pendiente",
+  EN_PROCESO: "En Proceso",
+  COMPLETADO: "Completado",
+  CANCELADO: "Cancelado",
+} as const;
+
+export type SolicitudEstado = typeof SolicitudStatus[keyof typeof SolicitudStatus];
 
 export interface Dimensiones {
   ancho: number;
@@ -17,6 +27,7 @@ export interface PuntoEntrega {
 interface BaseRequest {
   id?: string; // Firestore document ID
   tipo: 'mensajeria' | 'delivery' | 'envio_flex';
+  estado: SolicitudEstado;
   fechaCreacion: Timestamp;
 }
 
@@ -57,3 +68,6 @@ export interface EnvioFlexRequestData extends BaseRequest {
 }
 
 export type SolicitudData = MensajeriaRequestData | DeliveryRequestData | EnvioFlexRequestData;
+
+// Helper type to ensure ID is present when we know it (e.g., after fetching or for editing)
+export type SolicitudDataWithId = SolicitudData & { id: string };

@@ -17,9 +17,23 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import AddressAutocompleteInput from "@/components/shared/AddressAutocompleteInput";
 import { useToast } from "@/hooks/use-toast";
-import { addSolicitud } from "@/services/firestoreService";
-import type { DeliveryRequestData } from "@/types/requestTypes";
+import { addSolicitud, updateSolicitud } from "@/services/firestoreService";
+import type { DeliveryRequestData, SolicitudEstado } from "@/types/requestTypes";
+import { SolicitudStatus } from "@/types/requestTypes";
 import { Timestamp } from "firebase/firestore";
+import React, { useEffect } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const formatTimestampForInput = (timestamp?: Timestamp): string => {
+  if (!timestamp) return "";
+  const date = timestamp.toDate();
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
 
 const deliveryFormSchema = z.object({
   pickupAddress: z.string().min(10, "La dirección de recogida es requerida."),
@@ -31,11 +45,17 @@ const deliveryFormSchema = z.object({
   packageDetails: z.string().min(5, "Los detalles del paquete son requeridos."),
   instruccionesEspeciales: z.string().optional(),
   fechaEntregaDeseada: z.string().min(1, "La fecha de entrega es requerida."),
+  estado: z.nativeEnum(SolicitudStatus).optional(),
 });
 
-type DeliveryFormValues = z.infer<typeof deliveryFormSchema>;
+export type DeliveryFormValues = z.infer<typeof deliveryFormSchema>;
 
-export default function DeliveryForm() {
+interface DeliveryFormProps {
+  initialData?: DeliveryRequestData & { id: string };
+  onSaveSuccess: () => void;
+}
+
+export default function DeliveryForm({ initialData, onSaveSuccess }: DeliveryFormProps) {
   const { toast } = useToast();
   const form = useForm<DeliveryFormValues>({
     resolver: zodResolver(deliveryFormSchema),
@@ -49,13 +69,45 @@ export default function DeliveryForm() {
       packageDetails: "",
       instruccionesEspeciales: "",
       fechaEntregaDeseada: "",
+      estado: SolicitudStatus.PENDIENTE,
     },
   });
 
+  const mode = initialData ? 'edit' : 'create';
+
+  useEffect(() => {
+    if (initialData) {
+      form.reset({
+        pickupAddress: initialData.direccionOrigen,
+        contactNamePickup: initialData.contactNamePickup,
+        contactPhonePickup: initialData.contactPhonePickup,
+        deliveryAddress: initialData.direccionDestino,
+        contactNameDelivery: initialData.nombreDestinatario,
+        contactPhoneDelivery: initialData.telefonoDestinatario,
+        packageDetails: initialData.packageDetails,
+        instruccionesEspeciales: initialData.instruccionesEspeciales || "",
+        fechaEntregaDeseada: formatTimestampForInput(initialData.fechaEntregaDeseada),
+        estado: initialData.estado || SolicitudStatus.PENDIENTE,
+      });
+    } else {
+        form.reset({
+            pickupAddress: "",
+            contactNamePickup: "",
+            contactPhonePickup: "",
+            deliveryAddress: "",
+            contactNameDelivery: "",
+            contactPhoneDelivery: "",
+            packageDetails: "",
+            instruccionesEspeciales: "",
+            fechaEntregaDeseada: "",
+            estado: SolicitudStatus.PENDIENTE,
+        });
+    }
+  }, [initialData, form]);
+
   async function onSubmit(data: DeliveryFormValues) {
     try {
-      const solicitudData: Omit<DeliveryRequestData, "id" | "fechaCreacion"> = {
-        tipo: "delivery",
+      const commonData = {
         direccionOrigen: data.pickupAddress,
         contactNamePickup: data.contactNamePickup,
         contactPhonePickup: data.contactPhonePickup,
@@ -64,21 +116,37 @@ export default function DeliveryForm() {
         telefonoDestinatario: data.contactPhoneDelivery,
         packageDetails: data.packageDetails,
         fechaEntregaDeseada: Timestamp.fromDate(new Date(data.fechaEntregaDeseada)),
+        estado: data.estado || SolicitudStatus.PENDIENTE,
         ...(data.instruccionesEspeciales && { instruccionesEspeciales: data.instruccionesEspeciales }),
       };
 
-      await addSolicitud(solicitudData);
-
-      toast({
-        title: "Solicitud de Delivery Enviada",
-        description: "Su solicitud de delivery ha sido registrada en Firestore.",
-      });
-      form.reset();
+      if (mode === 'edit' && initialData?.id) {
+        await updateSolicitud(initialData.id, {
+            tipo: "delivery",
+            ...commonData,
+        });
+        toast({
+          title: "Solicitud Actualizada",
+          description: "La solicitud de delivery ha sido actualizada.",
+        });
+      } else {
+        const solicitudToCreate: Omit<DeliveryRequestData, "id" | "fechaCreacion"> = {
+            tipo: "delivery",
+            ...commonData,
+        };
+        await addSolicitud(solicitudToCreate);
+        toast({
+          title: "Solicitud de Delivery Enviada",
+          description: "Su solicitud de delivery ha sido registrada.",
+        });
+      }
+      onSaveSuccess();
+      if (mode === 'create') form.reset();
     } catch (error) {
-      console.error("Error creating delivery request:", error);
+      console.error(`Error ${mode === 'edit' ? 'updating' : 'creating'} delivery request:`, error);
       toast({
         title: "Error",
-        description: "No se pudo registrar la solicitud. Intente nuevamente.",
+        description: `No se pudo ${mode === 'edit' ? 'actualizar' : 'registrar'} la solicitud. Intente nuevamente.`,
         variant: "destructive",
       });
     }
@@ -86,7 +154,7 @@ export default function DeliveryForm() {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <div className="space-y-4">
           <h3 className="text-lg font-medium">Información de Recogida</h3>
           <FormField
@@ -238,10 +306,34 @@ export default function DeliveryForm() {
               </FormItem>
             )}
           />
+           {mode === 'edit' && (
+            <FormField
+              control={form.control}
+              name="estado"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Estado</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccione un estado" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.values(SolicitudStatus).map(status => (
+                        <SelectItem key={status} value={status}>{status}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
 
         <Button type="submit" className="w-full bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] hover:bg-[hsl(var(--accent)/0.9)]" size="lg">
-          Cotizá tu envío
+          {mode === 'edit' ? 'Actualizar Solicitud' : 'Cotizá tu envío'}
         </Button>
       </form>
     </Form>

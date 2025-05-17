@@ -23,9 +23,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { addSolicitud } from "@/services/firestoreService";
-import type { MensajeriaRequestData } from "@/types/requestTypes";
+import { addSolicitud, updateSolicitud } from "@/services/firestoreService";
+import type { MensajeriaRequestData, SolicitudEstado } from "@/types/requestTypes";
+import { SolicitudStatus } from "@/types/requestTypes";
 import { Timestamp } from "firebase/firestore";
+import React, { useEffect } from "react";
+
+// Helper to format Timestamp to datetime-local string
+const formatTimestampForInput = (timestamp?: Timestamp): string => {
+  if (!timestamp) return "";
+  const date = timestamp.toDate();
+  // Format: YYYY-MM-DDTHH:mm
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
 
 const courierFormSchema = z.object({
   senderName: z.string().min(2, "El nombre del remitente es requerido."),
@@ -43,11 +58,17 @@ const courierFormSchema = z.object({
   dimensionesAlto: z.coerce.number().positive("El alto debe ser positivo.").optional(),
   dimensionesLargo: z.coerce.number().positive("El largo debe ser positivo.").optional(),
   fechaRecoleccionDeseada: z.string().min(1, "La fecha de recolección es requerida."),
+  estado: z.nativeEnum(SolicitudStatus).optional(),
 });
 
-type CourierFormValues = z.infer<typeof courierFormSchema>;
+export type CourierFormValues = z.infer<typeof courierFormSchema>;
 
-export default function CourierForm() {
+interface CourierFormProps {
+  initialData?: MensajeriaRequestData & { id: string };
+  onSaveSuccess: () => void;
+}
+
+export default function CourierForm({ initialData, onSaveSuccess }: CourierFormProps) {
   const { toast } = useToast();
   const form = useForm<CourierFormValues>({
     resolver: zodResolver(courierFormSchema),
@@ -65,13 +86,49 @@ export default function CourierForm() {
       dimensionesAlto: undefined,
       dimensionesLargo: undefined,
       fechaRecoleccionDeseada: "",
+      estado: SolicitudStatus.PENDIENTE,
     },
   });
 
+  const mode = initialData ? 'edit' : 'create';
+
+  useEffect(() => {
+    if (initialData) {
+      form.reset({
+        ...initialData,
+        origen: initialData.origen || "",
+        destino: initialData.destino || "",
+        packageDescription: initialData.descripcionPaquete || "",
+        fechaRecoleccionDeseada: formatTimestampForInput(initialData.fechaRecoleccionDeseada),
+        peso: initialData.peso ?? undefined,
+        dimensionesAncho: initialData.dimensiones?.ancho ?? undefined,
+        dimensionesAlto: initialData.dimensiones?.alto ?? undefined,
+        dimensionesLargo: initialData.dimensiones?.largo ?? undefined,
+        estado: initialData.estado || SolicitudStatus.PENDIENTE,
+      });
+    } else {
+      form.reset({ // Reset to default for create mode
+        senderName: "",
+        senderPhone: "",
+        originAddress: "",
+        recipientName: "",
+        recipientPhone: "",
+        destinationAddress: "",
+        packageDescription: "",
+        serviceType: undefined,
+        peso: undefined,
+        dimensionesAncho: undefined,
+        dimensionesAlto: undefined,
+        dimensionesLargo: undefined,
+        fechaRecoleccionDeseada: "",
+        estado: SolicitudStatus.PENDIENTE,
+      });
+    }
+  }, [initialData, form]);
+
   async function onSubmit(data: CourierFormValues) {
     try {
-      const solicitudData: Omit<MensajeriaRequestData, "id" | "fechaCreacion"> = {
-        tipo: "mensajeria",
+      const commonData = {
         senderName: data.senderName,
         senderPhone: data.senderPhone,
         origen: data.originAddress,
@@ -81,6 +138,7 @@ export default function CourierForm() {
         descripcionPaquete: data.packageDescription,
         serviceType: data.serviceType,
         fechaRecoleccionDeseada: Timestamp.fromDate(new Date(data.fechaRecoleccionDeseada)),
+        estado: data.estado || SolicitudStatus.PENDIENTE,
         ...(data.peso && { peso: data.peso }),
         ...(data.dimensionesAncho && data.dimensionesAlto && data.dimensionesLargo && {
           dimensiones: {
@@ -91,18 +149,34 @@ export default function CourierForm() {
         }),
       };
 
-      await addSolicitud(solicitudData);
-
-      toast({
-        title: "Solicitud Enviada",
-        description: "Su solicitud de mensajería ha sido registrada en Firestore.",
-      });
-      form.reset();
+      if (mode === 'edit' && initialData?.id) {
+        await updateSolicitud(initialData.id, {
+            tipo: "mensajeria", // Ensure tipo is maintained correctly
+             ...commonData
+        });
+        toast({
+          title: "Solicitud Actualizada",
+          description: "La solicitud de mensajería ha sido actualizada.",
+        });
+      } else {
+        const solicitudToCreate: Omit<MensajeriaRequestData, 'id' | 'fechaCreacion'> = {
+            tipo: "mensajeria",
+            ...commonData,
+            // estado will be set by commonData or default in service
+        };
+        await addSolicitud(solicitudToCreate);
+        toast({
+          title: "Solicitud Enviada",
+          description: "Su solicitud de mensajería ha sido registrada.",
+        });
+      }
+      onSaveSuccess();
+      if (mode === 'create') form.reset(); // Reset only for create mode
     } catch (error) {
-      console.error("Error creating mensajeria request:", error);
+      console.error(`Error ${mode === 'edit' ? 'updating' : 'creating'} mensajeria request:`, error);
       toast({
         title: "Error",
-        description: "No se pudo registrar la solicitud. Intente nuevamente.",
+        description: `No se pudo ${mode === 'edit' ? 'actualizar' : 'registrar'} la solicitud. Intente nuevamente.`,
         variant: "destructive",
       });
     }
@@ -110,7 +184,7 @@ export default function CourierForm() {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <div className="space-y-4">
           <h3 className="text-lg font-medium">Información del Remitente</h3>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -223,7 +297,7 @@ export default function CourierForm() {
               <FormItem>
                 <FormLabel>Peso (kg) (Opcional)</FormLabel>
                 <FormControl>
-                  <Input type="number" placeholder="Ej: 2.5" {...field} onChange={event => field.onChange(parseFloat(event.target.value))} />
+                  <Input type="number" step="0.1" placeholder="Ej: 2.5" {...field} onChange={event => field.onChange(parseFloat(event.target.value))} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -289,7 +363,7 @@ export default function CourierForm() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Tipo de Servicio</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccione un tipo de servicio" />
@@ -304,10 +378,34 @@ export default function CourierForm() {
               </FormItem>
             )}
           />
+          {mode === 'edit' && (
+            <FormField
+              control={form.control}
+              name="estado"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Estado</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccione un estado" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.values(SolicitudStatus).map(status => (
+                        <SelectItem key={status} value={status}>{status}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
 
         <Button type="submit" className="w-full bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] hover:bg-[hsl(var(--accent)/0.9)]" size="lg">
-          Cotizá tu envío
+          {mode === 'edit' ? 'Actualizar Solicitud' : 'Cotizá tu envío'}
         </Button>
       </form>
     </Form>
